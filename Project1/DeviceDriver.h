@@ -12,6 +12,8 @@ protected:
     FlashMemoryDevice *m_hardware;
 
 private:
-    const int READ_RETRY_CNT = 5;
-    const int ERASE_DATA = 0xFF;
+    const int RETRY_TEST_COUNT = 4;
+
+    void readTestMustBlank(long address);
+    void tryTest(long address, int readValue);
 };

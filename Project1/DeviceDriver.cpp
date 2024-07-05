@@ -1,50 +1,64 @@
-#include "DeviceDriver.h"
 #include <stdexcept>
-using namespace std;
+#include "DeviceDriver.h"
 
+class ReadFail : public std::exception {};
+class WriteFail : public std::exception {};
 
-class WriteException : public exception
-{
-public:
-    explicit WriteException(char const* _Message)
-        : exception(_Message)
-    {
-
-    }
-};
-
-class ReadException : public exception
-{
-public:
-    explicit ReadException(char const* _Message)
-        : exception(_Message)
-    {
-
-    }
-};
-
-DeviceDriver::DeviceDriver(FlashMemoryDevice *hardware) : m_hardware(hardware)
+DeviceDriver::DeviceDriver(FlashMemoryDevice* hardware) : m_hardware(hardware)
 {}
 
 int DeviceDriver::read(long address)
 {
-    int data = (int)(m_hardware->read(address));
-    for (int i = 1; i < READ_RETRY_CNT; i++)
-    {
-        if (data != (int)(m_hardware->read(address)))
-        {
-            throw ReadException("read exception");
+    int readValue = (int)(m_hardware->read(address));
+    tryTest(address, readValue);
+
+    return readValue;
+}
+
+void DeviceDriver::tryTest(long address, int readValue)
+{
+    for (int i = 0; i < RETRY_TEST_COUNT; i++) {
+        int testValue = (int)(m_hardware->read(address));
+        if (testValue != readValue) {
+            throw ReadFail();
         }
     }
-    return data;
 }
 
 void DeviceDriver::write(long address, int data)
 {
-    int prevData = (int)(m_hardware->read(address));
-    if (prevData != ERASE_DATA)
-    {
-        throw WriteException("write exception");
-    }
+    readTestMustBlank(address);
     m_hardware->write(address, (unsigned char)data);
 }
+
+void DeviceDriver::readTestMustBlank(long address)
+{
+    int testValue = (int)(m_hardware->read(address));
+    if (testValue != 0xFF) {
+        throw WriteFail();
+    }
+}
+
+
+
+class Application {
+public:
+    Application(DeviceDriver* driver) {
+        this->driver = driver;
+    }
+
+    void readAndPrint(int startAddr, int endAddr) {
+        for (int addr = startAddr; addr <= endAddr; addr++) {
+            driver->read(addr);
+        }
+    }
+
+    void writeAll(int value) {
+        for (int addr = 0x00; addr <= 0x04; addr++) {
+            driver->write(addr, value);
+        }
+    }
+
+private:
+    DeviceDriver* driver;
+};
